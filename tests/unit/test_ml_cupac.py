@@ -300,3 +300,31 @@ def test_public_calc_dispatches_to_pandas_implementation() -> None:
     CupacExtension(random_state=0).calc(
         data=_ds(X, FeatureRole), mode="kfold_fit", model="linear", Y=_ds(y, TargetRole)
     )
+
+
+def test_prepare_data_mixes_current_and_lagged_features() -> None:
+    df = pd.DataFrame(
+        {
+            "y": [1.0, 2.0, 3.0],
+            "y_l1": [0.5, 1.5, 2.5],
+            "x1": [2.0, 3.0, 4.0],
+            "x1_l1": [1.0, 2.0, 3.0],
+        }
+    )
+    roles = {
+        "y": TargetRole(cofounders=["x1"]),
+        "y_l1": PreTargetRole(parent="y", lag=1),
+        "x1": FeatureRole(),
+        "x1_l1": FeatureRole(parent="x1", lag=1),
+    }
+    experiment = ExperimentData(
+        Dataset(roles=roles, data=df, backend=BackendsEnum.pandas)
+    )
+
+    assert CUPACExecutor._prepare_data(experiment) == {
+        "y": {
+            "X_train": [],
+            "Y_train": [],
+            "X_predict": [["x1_l1"], ["y_l1"]],
+        }
+    }
